@@ -6,5 +6,15 @@
       { "src": "/api/(.*)", "dest": "/api/$1" },
       { "src": "/(.*)\\.php", "dest": "/api/pages/$1.php" },
       { "src": "/(.*)", "dest": "/api/$1" }
+    ],
+    "builds":[
+      {
+        "src": "index.php",
+        "use": "@vercel/php",
+        "config": {
+          "phpVersion": "8.3.8",
+          "extensions": ["pdo_pgsql"]
+        }
+      }
     ]
-  }
+}
