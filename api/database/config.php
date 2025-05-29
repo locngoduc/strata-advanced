@@ -2,12 +2,13 @@
 // Database configuration
 $db_host = getenv('DB_HOST') ?: 'localhost';
 $db_name = getenv('DB_NAME') ?: 'strata_db';
-$db_user = getenv('DB_USER') ?: 'root';
+$db_user = getenv('DB_USER') ?: 'postgres';
 $db_pass = getenv('DB_PASS') ?: '';
+$db_port = getenv('DB_PORT') ?: '5432';
 
 try {
     $pdo = new PDO(
-        "mysql:host=$db_host;dbname=$db_name;charset=utf8mb4",
+        "pgsql:host=$db_host;port=$db_port;dbname=$db_name",
         $db_user,
         $db_pass,
         [
