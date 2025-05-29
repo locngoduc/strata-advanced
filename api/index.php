@@ -32,7 +32,7 @@ require_once __DIR__ . '/includes/session.php';
                         <a class="nav-link" href="/levies.php">Levies</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="/owners.php">Owners</a>
+                        <a class="nav-link" href="/api/pages/owners.php">Owners</a>
                     </li>
                 </ul>
                 <ul class="navbar-nav ms-auto">
@@ -65,7 +65,7 @@ require_once __DIR__ . '/includes/session.php';
                                     <li><a href="/documents.php">View Documents</a></li>
                                     <li><a href="/maintenance.php">Submit Maintenance Request</a></li>
                                     <li><a href="/levies.php">Pay Levies</a></li>
-                                    <li><a href="/owners.php">Owners Directory</a></li>
+                                    <li><a href="/api/pages/owners.php">Owners Directory</a></li>
                                 </ul>
                             </div>
                         </div>
