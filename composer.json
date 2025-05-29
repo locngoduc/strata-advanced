@@ -1,0 +1,13 @@
+{
+    "name": "strata/management-system",
+    "description": "A strata management system for apartment buildings.",
+    "type": "project",
+    "require": {
+        "php": ">=8.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Strata\\": "api/"
+        }
+    }
+} 
