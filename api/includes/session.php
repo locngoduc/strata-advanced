@@ -1,9 +1,12 @@
 <?php
 // Secure session configuration
 ini_set('session.cookie_httponly', 1);
-ini_set('session.cookie_secure', 1);
+// Only use secure cookies when HTTPS is available (production)
+$isHTTPS = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on';
+ini_set('session.cookie_secure', $isHTTPS ? 1 : 0);
 ini_set('session.use_only_cookies', 1);
-ini_set('session.cookie_samesite', 'Strict');
+// Use Lax instead of Strict for better compatibility
+ini_set('session.cookie_samesite', 'Lax');
 
 session_start();
 
