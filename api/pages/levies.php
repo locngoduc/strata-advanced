@@ -6,8 +6,76 @@ require_once __DIR__ . '/../database/config.php';
 requireLogin();
 
 $currentUser = getCurrentUser();
+$error = '';
+$success = '';
 
-// Get levies data
+// Handle levy payment (HTTP POST)
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $csrfToken = $_POST['csrf_token'] ?? '';
+    if (!validateCSRFToken($csrfToken)) {
+        $error = 'Invalid request. Please try again.';
+    } else {
+        $action = $_POST['action'] ?? '';
+        
+        if ($action === 'pay_levy') {
+            $levy_id = intval($_POST['levy_id'] ?? 0);
+            $payment_method = sanitizeInput($_POST['payment_method'] ?? '');
+            $amount = floatval($_POST['amount'] ?? 0);
+
+            if ($levy_id <= 0 || empty($payment_method) || $amount <= 0) {
+                $error = 'Please fill in all required fields with valid values.';
+            } else {
+                try {
+                    // Verify the levy belongs to current user (unless admin/committee)
+                    if (!hasAnyRole(['admin', 'committee'])) {
+                        $stmt = $pdo->prepare('
+                            SELECT l.* FROM levies l 
+                            JOIN units u ON l.unit_id = u.id 
+                            WHERE l.id = ? AND u.owner_id = ?
+                        ');
+                        $stmt->execute([$levy_id, $currentUser['id']]);
+                        $levy = $stmt->fetch();
+                        
+                        if (!$levy) {
+                            $error = 'Levy not found or you do not have permission to pay it.';
+                        }
+                    } else {
+                        $stmt = $pdo->prepare('SELECT * FROM levies WHERE id = ?');
+                        $stmt->execute([$levy_id]);
+                        $levy = $stmt->fetch();
+                    }
+
+                    if (!isset($error) && $levy) {
+                        $pdo->beginTransaction();
+                        
+                        // Generate reference number
+                        $reference = strtoupper($payment_method[0] . $payment_method[1]) . date('ymdHis');
+                        
+                        // Insert payment record
+                        $stmt = $pdo->prepare('
+                            INSERT INTO levy_payments (levy_id, amount, payment_date, payment_method, reference_number) 
+                            VALUES (?, ?, CURDATE(), ?, ?)
+                        ');
+                        $stmt->execute([$levy_id, $amount, $payment_method, $reference]);
+                        
+                        // Update levy status to paid
+                        $stmt = $pdo->prepare('UPDATE levies SET status = ? WHERE id = ?');
+                        $stmt->execute(['paid', $levy_id]);
+                        
+                        $pdo->commit();
+                        $success = "Payment of $" . number_format($amount, 2) . " processed successfully! Reference: " . $reference;
+                    }
+                } catch (PDOException $e) {
+                    $pdo->rollBack();
+                    error_log('Levy payment error: ' . $e->getMessage());
+                    $error = 'Payment processing failed. Please try again.';
+                }
+            }
+        }
+    }
+}
+
+// Get levies data (HTTP GET)
 try {
     if (hasRole('admin') || hasRole('committee')) {
         // Admins and committee can see all levies
@@ -38,48 +106,6 @@ try {
     $error = 'Unable to load levy information.';
 }
 
-// Sample data if no levies in database
-if (empty($levies)) {
-    $levies = [
-        [
-            'id' => 1,
-            'amount' => 450.00,
-            'due_date' => '2024-02-15',
-            'status' => 'pending',
-            'unit_number' => '101',
-            'owner_name' => 'John Smith',
-            'created_at' => '2024-01-15 10:00:00'
-        ],
-        [
-            'id' => 2,
-            'amount' => 380.00,
-            'due_date' => '2024-01-15',
-            'status' => 'paid',
-            'unit_number' => '102',
-            'owner_name' => 'Jane Doe',
-            'created_at' => '2023-12-15 10:00:00'
-        ],
-        [
-            'id' => 3,
-            'amount' => 525.00,
-            'due_date' => '2024-01-10',
-            'status' => 'overdue',
-            'unit_number' => '201',
-            'owner_name' => 'Mike Johnson',
-            'created_at' => '2023-12-10 10:00:00'
-        ],
-        [
-            'id' => 4,
-            'amount' => 410.00,
-            'due_date' => '2024-03-15',
-            'status' => 'pending',
-            'unit_number' => '202',
-            'owner_name' => 'Sarah Wilson',
-            'created_at' => '2024-02-15 10:00:00'
-        ]
-    ];
-}
-
 function getStatusBadge($status) {
     switch ($status) {
         case 'pending': return 'bg-warning text-dark';
@@ -100,6 +126,8 @@ function getDaysUntilDue($dueDate) {
         return $diff->days; // Positive for days remaining
     }
 }
+
+$csrfToken = generateCSRFToken();
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -132,8 +160,12 @@ function getDaysUntilDue($dueDate) {
             <?php echo hasAnyRole(['admin', 'committee']) ? 'Manage strata levies and payments for all units.' : 'View and pay your strata levies.'; ?>
         </p>
 
-        <?php if (isset($error)): ?>
+        <?php if ($error): ?>
             <div class="alert alert-danger"><?php echo htmlspecialchars($error); ?></div>
+        <?php endif; ?>
+
+        <?php if ($success): ?>
+            <div class="alert alert-success"><?php echo htmlspecialchars($success); ?></div>
         <?php endif; ?>
 
         <!-- Levy Summary Cards -->
@@ -197,6 +229,9 @@ function getDaysUntilDue($dueDate) {
                 <?php if (empty($levies)): ?>
                     <div class="text-center text-muted py-4">
                         <p>No levy notices found.</p>
+                        <?php if (hasAnyRole(['admin', 'committee'])): ?>
+                            <p><a href="/api/pages/generate_levies.php" class="btn btn-primary">Generate Levy Notices</a></p>
+                        <?php endif; ?>
                     </div>
                 <?php else: ?>
                     <div class="table-responsive">
@@ -209,21 +244,32 @@ function getDaysUntilDue($dueDate) {
                                     <?php endif; ?>
                                     <th>Amount</th>
                                     <th>Due Date</th>
+                                    <th>Quarter</th>
                                     <th>Status</th>
                                     <th>Days</th>
-                                    <th>Action</th>
+                                    <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                <?php foreach ($levies as $levy): ?>
-                                    <?php $daysUntilDue = getDaysUntilDue($levy['due_date']); ?>
+                                <?php foreach ($levies as $levy): 
+                                    $daysUntilDue = getDaysUntilDue($levy['due_date']);
+                                ?>
                                     <tr>
                                         <?php if (hasAnyRole(['admin', 'committee'])): ?>
-                                            <td><?php echo htmlspecialchars($levy['unit_number'] ?? 'N/A'); ?></td>
-                                            <td><?php echo htmlspecialchars($levy['owner_name'] ?? 'Unknown'); ?></td>
+                                            <td><strong><?php echo htmlspecialchars($levy['unit_number'] ?? 'N/A'); ?></strong></td>
+                                            <td><?php echo htmlspecialchars($levy['owner_name'] ?? 'Unassigned'); ?></td>
                                         <?php endif; ?>
-                                        <td><strong>$<?php echo number_format($levy['amount'], 2); ?></strong></td>
+                                        <td>
+                                            <strong>$<?php echo number_format($levy['amount'], 2); ?></strong>
+                                            <?php if ($levy['admin_amount'] && $levy['capital_amount']): ?>
+                                                <br><small class="text-muted">
+                                                    Admin: $<?php echo number_format($levy['admin_amount'], 2); ?> | 
+                                                    Capital: $<?php echo number_format($levy['capital_amount'], 2); ?>
+                                                </small>
+                                            <?php endif; ?>
+                                        </td>
                                         <td><?php echo date('M d, Y', strtotime($levy['due_date'])); ?></td>
+                                        <td><?php echo htmlspecialchars($levy['quarter'] ?? 'N/A'); ?></td>
                                         <td>
                                             <span class="badge <?php echo getStatusBadge($levy['status']); ?>">
                                                 <?php echo ucfirst(htmlspecialchars($levy['status'])); ?>
@@ -235,20 +281,20 @@ function getDaysUntilDue($dueDate) {
                                             <?php elseif ($daysUntilDue == 0): ?>
                                                 <span class="text-warning">Due today</span>
                                             <?php else: ?>
-                                                <span class="text-muted"><?php echo $daysUntilDue; ?> days remaining</span>
+                                                <span class="text-muted"><?php echo $daysUntilDue; ?> days</span>
                                             <?php endif; ?>
                                         </td>
                                         <td>
                                             <?php if ($levy['status'] === 'pending' || $levy['status'] === 'overdue'): ?>
-                                                <button class="btn btn-primary btn-sm" 
-                                                        onclick="alert('Payment processing feature coming soon!\n\nAmount: $<?php echo number_format($levy['amount'], 2); ?>\nDue: <?php echo date('M d, Y', strtotime($levy['due_date'])); ?>')">
+                                                <button class="btn btn-sm btn-primary" data-bs-toggle="modal" 
+                                                        data-bs-target="#paymentModal" 
+                                                        data-levy-id="<?php echo $levy['id']; ?>"
+                                                        data-amount="<?php echo $levy['amount']; ?>"
+                                                        data-unit="<?php echo htmlspecialchars($levy['unit_number'] ?? 'Your Unit'); ?>">
                                                     Pay Now
                                                 </button>
                                             <?php elseif ($levy['status'] === 'paid'): ?>
-                                                <button class="btn btn-outline-success btn-sm" 
-                                                        onclick="alert('Receipt download feature coming soon!')">
-                                                    Receipt
-                                                </button>
+                                                <span class="text-success small">✓ Paid</span>
                                             <?php endif; ?>
                                         </td>
                                     </tr>
@@ -260,55 +306,79 @@ function getDaysUntilDue($dueDate) {
             </div>
         </div>
 
-        <!-- Payment Information -->
-        <?php if (!hasRole('admin')): ?>
-            <div class="row mt-4">
-                <div class="col-md-6">
-                    <div class="card">
-                        <div class="card-header">
-                            <h6>Payment Information</h6>
-                        </div>
-                        <div class="card-body">
-                            <p><strong>Bank Details:</strong></p>
-                            <ul class="list-unstyled">
-                                <li><strong>BSB:</strong> 123-456</li>
-                                <li><strong>Account:</strong> 987654321</li>
-                                <li><strong>Name:</strong> Strata Management Fund</li>
-                                <li><strong>Reference:</strong> Unit <?php echo htmlspecialchars($currentUser['username'] ?? 'XXX'); ?></li>
-                            </ul>
-                            <small class="text-muted">Please include your unit number as the payment reference.</small>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="col-md-6">
-                    <div class="card">
-                        <div class="card-header">
-                            <h6>Payment Options</h6>
-                        </div>
-                        <div class="card-body">
-                            <ul class="list-unstyled">
-                                <li>💳 <strong>Online Banking:</strong> Use the bank details provided</li>
-                                <li>🏧 <strong>Direct Debit:</strong> Contact the strata manager</li>
-                                <li>💻 <strong>Online Portal:</strong> Pay now button (coming soon)</li>
-                                <li>📞 <strong>Phone:</strong> Call (02) 1234 5678</li>
-                            </ul>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        <?php endif; ?>
-
         <div class="mt-4">
             <a href="/api/index.php" class="btn btn-secondary">Back to Dashboard</a>
-            <?php if (hasRole('admin')): ?>
-                <button class="btn btn-success" onclick="alert('Generate levy notices feature coming soon!')">
-                    Generate New Levy Notice
-                </button>
+            <?php if (hasAnyRole(['admin', 'committee'])): ?>
+                <a href="/api/pages/generate_levies.php" class="btn btn-primary">Generate New Levies</a>
             <?php endif; ?>
         </div>
     </div>
 
+    <!-- Payment Modal -->
+    <div class="modal fade" id="paymentModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Pay Levy Notice</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form method="POST">
+                    <div class="modal-body">
+                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken); ?>">
+                        <input type="hidden" name="action" value="pay_levy">
+                        <input type="hidden" name="levy_id" id="modal_levy_id">
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Unit:</label>
+                            <span id="modal_unit" class="fw-bold"></span>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="amount" class="form-label">Amount *</label>
+                            <div class="input-group">
+                                <span class="input-group-text">$</span>
+                                <input type="number" class="form-control" name="amount" id="modal_amount" 
+                                       step="0.01" min="0" readonly>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="payment_method" class="form-label">Payment Method *</label>
+                            <select class="form-select" name="payment_method" required>
+                                <option value="">Select payment method</option>
+                                <option value="credit_card">Credit Card</option>
+                                <option value="bank_transfer">Bank Transfer</option>
+                                <option value="cheque">Cheque</option>
+                            </select>
+                        </div>
+                        
+                        <div class="alert alert-info small">
+                            <strong>Note:</strong> This is a simulated payment system. In a real implementation, 
+                            you would integrate with a payment gateway like Stripe or PayPal.
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Process Payment</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Handle payment modal data
+        document.getElementById('paymentModal').addEventListener('show.bs.modal', function (event) {
+            const button = event.relatedTarget;
+            const levyId = button.getAttribute('data-levy-id');
+            const amount = button.getAttribute('data-amount');
+            const unit = button.getAttribute('data-unit');
+            
+            document.getElementById('modal_levy_id').value = levyId;
+            document.getElementById('modal_amount').value = amount;
+            document.getElementById('modal_unit').textContent = unit;
+        });
+    </script>
 </body>
 </html> 

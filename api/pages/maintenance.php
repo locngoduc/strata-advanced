@@ -62,42 +62,20 @@ try {
     }
     
     $requests = $stmt->fetchAll();
+
+    // Get available units for the dropdown
+    if (hasAnyRole(['admin', 'committee'])) {
+        $unitsStmt = $pdo->query('SELECT id, unit_number, floor_number FROM units ORDER BY unit_number');
+    } else {
+        $unitsStmt = $pdo->prepare('SELECT id, unit_number, floor_number FROM units WHERE owner_id = ? ORDER BY unit_number');
+        $unitsStmt->execute([$currentUser['id']]);
+    }
+    $availableUnits = $unitsStmt->fetchAll();
+
 } catch (PDOException $e) {
     error_log('Maintenance requests error: ' . $e->getMessage());
     $requests = [];
-}
-
-// Sample data if no requests in database
-if (empty($requests)) {
-    $requests = [
-        [
-            'id' => 1,
-            'title' => 'Leaking tap in bathroom',
-            'description' => 'The bathroom tap is constantly dripping and needs repair.',
-            'status' => 'pending',
-            'unit_number' => '101',
-            'created_by_name' => 'John Smith',
-            'created_at' => '2024-01-15 10:00:00'
-        ],
-        [
-            'id' => 2,
-            'title' => 'Elevator making strange noises',
-            'description' => 'The elevator is making unusual noises when moving between floors.',
-            'status' => 'in_progress',
-            'unit_number' => 'Common Area',
-            'created_by_name' => 'Jane Doe',
-            'created_at' => '2024-01-10 14:30:00'
-        ],
-        [
-            'id' => 3,
-            'title' => 'Broken light in parking garage',
-            'description' => 'Light fixture in parking space B15 is not working.',
-            'status' => 'completed',
-            'unit_number' => 'Parking',
-            'created_by_name' => 'Mike Johnson',
-            'created_at' => '2024-01-05 16:45:00'
-        ]
-    ];
+    $availableUnits = [];
 }
 
 function getStatusBadge($status) {
@@ -174,12 +152,11 @@ $csrfToken = generateCSRFToken();
                                 <label for="unit_id" class="form-label">Location</label>
                                 <select class="form-select" id="unit_id" name="unit_id">
                                     <option value="">Select location (optional)</option>
-                                    <option value="1">Unit 101</option>
-                                    <option value="2">Unit 102</option>
-                                    <option value="3">Unit 201</option>
-                                    <option value="4">Unit 202</option>
-                                    <option value="">Common Area</option>
-                                    <option value="">Parking Garage</option>
+                                    <?php foreach ($availableUnits as $unit): ?>
+                                        <option value="<?php echo htmlspecialchars($unit['id']); ?>">
+                                            <?php echo htmlspecialchars($unit['unit_number']); ?>
+                                        </option>
+                                    <?php endforeach; ?>
                                 </select>
                             </div>
                             
