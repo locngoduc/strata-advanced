@@ -24,6 +24,9 @@ $currentUser = getCurrentUser();
                     <li class="nav-item">
                         <a class="nav-link" href="/api/index.php">Home</a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/public_info.php">Building Info</a>
+                    </li>
                     <?php if (isLoggedIn()): ?>
                         <li class="nav-item">
                             <a class="nav-link" href="/api/pages/documents.php">Documents</a>
@@ -37,8 +40,24 @@ $currentUser = getCurrentUser();
                         <li class="nav-item">
                             <a class="nav-link" href="/api/pages/owners.php">Owners Directory</a>
                         </li>
+                        <?php if (hasAnyRole(['committee', 'admin'])): ?>
+                            <li class="nav-item dropdown">
+                                <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                                    Management
+                                </a>
+                                <ul class="dropdown-menu">
+                                    <li><a class="dropdown-item" href="/api/pages/budget.php">Budget Management</a></li>
+                                    <li><a class="dropdown-item" href="/api/pages/generate_levies.php">Generate Levy Notices</a></li>
+                                    <?php if (hasRole('admin')): ?>
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li><a class="dropdown-item" href="/api/admin/create_admin.php">Create Admin</a></li>
+                                    <?php endif; ?>
+                                </ul>
+                            </li>
+                        <?php endif; ?>
                     <?php endif; ?>
                 </ul>
+                
                 <ul class="navbar-nav ms-auto">
                     <?php if (isLoggedIn()): ?>
                         <li class="nav-item">
@@ -71,13 +90,14 @@ $currentUser = getCurrentUser();
             <div class="alert alert-info">
                 <h5>Welcome to Strata Management System</h5>
                 <p>Please <a href="/api/pages/login.php" class="alert-link">login</a> or <a href="/api/pages/register.php" class="alert-link">register</a> to access the system.</p>
+                <p>View general <a href="/public_info.php" class="alert-link">building information</a> available to the public.</p>
             </div>
         <?php endif; ?>
 
         <div class="row">
             <div class="col-md-8">
                 <h1>Welcome to Strata Management System</h1>
-                <p class="lead">Efficiently manage your strata property with our comprehensive management system.</p>
+                <p class="lead">Efficiently manage your strata property with our comprehensive management system compliant with NSW Strata Schemes Management Act 2015.</p>
                 
                 <?php if (isLoggedIn()): ?>
                 <div class="row mt-4">
@@ -94,77 +114,102 @@ $currentUser = getCurrentUser();
                             </div>
                         </div>
                     </div>
+                    
+                    <?php if (hasAnyRole(['committee', 'admin'])): ?>
                     <div class="col-md-6">
-                        <div class="card">
+                        <div class="card mb-4">
                             <div class="card-body">
-                                <h5 class="card-title">Recent Updates</h5>
-                                <div id="updates">
-                                    <div class="text-center">
-                                        <div class="spinner-border spinner-border-sm" role="status">
-                                            <span class="visually-hidden">Loading...</span>
-                                        </div>
-                                        Loading updates...
-                                    </div>
-                                </div>
+                                <h5 class="card-title">Management Tools</h5>
+                                <ul class="list-unstyled">
+                                    <li><a href="/api/pages/budget.php" class="text-decoration-none">📊 Budget Management</a></li>
+                                    <li><a href="/api/pages/generate_levies.php" class="text-decoration-none">📋 Generate Levy Notices</a></li>
+                                    <?php if (hasRole('admin')): ?>
+                                        <li><a href="/api/admin/create_admin.php" class="text-decoration-none">👑 Create Admin Account</a></li>
+                                    <?php endif; ?>
+                                </ul>
                             </div>
                         </div>
                     </div>
+                    <?php endif; ?>
                 </div>
                 <?php endif; ?>
             </div>
             
-            <?php if (isLoggedIn()): ?>
             <div class="col-md-4">
                 <div class="card">
                     <div class="card-body">
-                        <h5 class="card-title">Important Notices</h5>
-                        <div id="notices">
-                            <div class="text-center">
-                                <div class="spinner-border spinner-border-sm" role="status">
-                                    <span class="visually-hidden">Loading...</span>
-                                </div>
-                                Loading notices...
-                            </div>
-                        </div>
+                        <h5 class="card-title">Building Information</h5>
+                        <p class="card-text">Skyline Apartments - Modern strata-titled complex with 120 units across 15 floors.</p>
+                        <a href="/public_info.php" class="btn btn-primary">View Details</a>
+                    </div>
+                </div>
+                
+                <?php if (isLoggedIn()): ?>
+                <div class="card mt-3">
+                    <div class="card-body">
+                        <h6 class="card-title">Your Account</h6>
+                        <p class="card-text">
+                            <strong>Role:</strong> <?php echo htmlspecialchars(ucfirst($currentUser['role'])); ?><br>
+                            <strong>Username:</strong> <?php echo htmlspecialchars($currentUser['username']); ?><br>
+                            <strong>Email:</strong> <?php echo htmlspecialchars($currentUser['email'] ?? 'Not available'); ?>
+                        </p>
+                    </div>
+                </div>
+                
+                <div class="card mt-3">
+                    <div class="card-body">
+                        <h6 class="card-title">System Features</h6>
+                        <ul class="list-unstyled small">
+                            <li>✅ Document storage and access</li>
+                            <li>✅ Maintenance request tracking</li>
+                            <li>✅ Levy management and payment</li>
+                            <li>✅ Owners directory and contact details</li>
+                            <li>✅ Budget planning and tracking</li>
+                            <li>✅ Automated levy generation</li>
+                            <li>✅ Role-based access control</li>
+                            <li>✅ NSW Strata Act compliance</li>
+                        </ul>
+                    </div>
+                </div>
+                <?php endif; ?>
+            </div>
+        </div>
+
+        <?php if (!isLoggedIn()): ?>
+        <!-- Public Features Section -->
+        <div class="row mt-5">
+            <div class="col-12">
+                <h2>System Features</h2>
+                <p class="text-muted">Comprehensive strata management solution for NSW apartment buildings</p>
+            </div>
+            <div class="col-md-4">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">📄 Document Management</h5>
+                        <p class="card-text">Secure storage and access to important documents including insurance certificates, financial reports, and meeting minutes.</p>
                     </div>
                 </div>
             </div>
-            <?php endif; ?>
+            <div class="col-md-4">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">💰 Financial Management</h5>
+                        <p class="card-text">Complete budget management, levy generation, and payment tracking for both administration and capital works funds.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">🔧 Maintenance Tracking</h5>
+                        <p class="card-text">Submit and track maintenance requests with status updates and work order management.</p>
+                    </div>
+                </div>
+            </div>
         </div>
+        <?php endif; ?>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <?php if (isLoggedIn()): ?>
-    <script>
-        // Load updates and notices via AJAX only if user is logged in
-        fetch('/api/updates.php')
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    document.getElementById('updates').innerHTML = data.html;
-                } else {
-                    document.getElementById('updates').innerHTML = '<div class="text-danger">Error loading updates</div>';
-                }
-            })
-            .catch(error => {
-                console.error('Error loading updates:', error);
-                document.getElementById('updates').innerHTML = '<div class="text-danger">Error loading updates</div>';
-            });
-
-        fetch('/api/notices.php')
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    document.getElementById('notices').innerHTML = data.html;
-                } else {
-                    document.getElementById('notices').innerHTML = '<div class="text-danger">Error loading notices</div>';
-                }
-            })
-            .catch(error => {
-                console.error('Error loading notices:', error);
-                document.getElementById('notices').innerHTML = '<div class="text-danger">Error loading notices</div>';
-            });
-    </script>
-    <?php endif; ?>
 </body>
 </html>

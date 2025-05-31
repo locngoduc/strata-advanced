@@ -89,28 +89,65 @@ try {
                     <div class="alert alert-info">No owners found in the system.</div>
                 <?php else: ?>
                     <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <?php if (hasRole('admin')): ?>
+                                    Complete Strata Roll - Administrative View
+                                <?php elseif (hasRole('committee')): ?>
+                                    Strata Roll - Committee View
+                                <?php else: ?>
+                                    Owners Directory
+                                <?php endif; ?>
+                            </h5>
+                            <small class="text-muted">
+                                <?php if (hasAnyRole(['admin', 'committee'])): ?>
+                                    Total Units: <?php echo count($owners); ?> | Total Entitlements: 
+                                    <?php 
+                                    $totalEntitlements = 0;
+                                    foreach ($owners as $owner) {
+                                        $totalEntitlements += $owner['unit_entitlements'] ?? 0;
+                                    }
+                                    echo $totalEntitlements;
+                                    ?>
+                                <?php else: ?>
+                                    Building directory for <?php echo count($owners); ?> units
+                                <?php endif; ?>
+                            </small>
+                        </div>
                         <div class="card-body">
                             <div class="table-responsive">
                                 <table class="table table-striped">
                                     <thead>
                                         <tr>
-                                            <th>Name</th>
+                                            <th>Unit</th>
+                                            <th>Floor</th>
+                                            <th>Owner Name</th>
                                             <?php if (hasRole('admin')): ?>
                                                 <th>Email</th>
                                                 <th>Role</th>
                                                 <th>Member Since</th>
                                             <?php endif; ?>
-                                            <th>Unit Number</th>
-                                            <th>Floor</th>
                                             <?php if (hasAnyRole(['admin', 'committee'])): ?>
                                                 <th>Entitlements</th>
+                                                <th>Voting %</th>
                                             <?php endif; ?>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         <?php foreach ($owners as $owner): ?>
                                             <tr>
-                                                <td><?php echo htmlspecialchars($owner['username']); ?></td>
+                                                <td>
+                                                    <strong><?php echo htmlspecialchars($owner['unit_number'] ?? 'N/A'); ?></strong>
+                                                </td>
+                                                <td><?php echo htmlspecialchars($owner['floor_number'] ?? 'N/A'); ?></td>
+                                                <td>
+                                                    <?php echo htmlspecialchars($owner['username']); ?>
+                                                    <?php if ($owner['role'] === 'committee'): ?>
+                                                        <span class="badge bg-warning text-dark">Committee</span>
+                                                    <?php elseif ($owner['role'] === 'admin'): ?>
+                                                        <span class="badge bg-danger">Admin</span>
+                                                    <?php endif; ?>
+                                                </td>
                                                 <?php if (hasRole('admin')): ?>
                                                     <td><?php echo htmlspecialchars($owner['email'] ?? 'N/A'); ?></td>
                                                     <td>
@@ -123,10 +160,18 @@ try {
                                                     </td>
                                                     <td><?php echo htmlspecialchars(date('M d, Y', strtotime($owner['created_at']))); ?></td>
                                                 <?php endif; ?>
-                                                <td><?php echo htmlspecialchars($owner['unit_number'] ?? 'N/A'); ?></td>
-                                                <td><?php echo htmlspecialchars($owner['floor_number'] ?? 'N/A'); ?></td>
                                                 <?php if (hasAnyRole(['admin', 'committee'])): ?>
-                                                    <td><?php echo htmlspecialchars($owner['unit_entitlements'] ?? 'N/A'); ?></td>
+                                                    <td>
+                                                        <strong><?php echo htmlspecialchars($owner['unit_entitlements'] ?? 'N/A'); ?></strong>
+                                                    </td>
+                                                    <td>
+                                                        <?php 
+                                                        $votingPercentage = $totalEntitlements > 0 && $owner['unit_entitlements'] 
+                                                            ? round(($owner['unit_entitlements'] / $totalEntitlements) * 100, 2) 
+                                                            : 0;
+                                                        ?>
+                                                        <?php echo $votingPercentage; ?>%
+                                                    </td>
                                                 <?php endif; ?>
                                             </tr>
                                         <?php endforeach; ?>
@@ -135,6 +180,91 @@ try {
                             </div>
                         </div>
                     </div>
+
+                    <!-- Entitlements Summary -->
+                    <?php if (hasAnyRole(['admin', 'committee'])): ?>
+                    <div class="row mt-4">
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6>Unit Entitlements Summary</h6>
+                                </div>
+                                <div class="card-body">
+                                    <?php
+                                    $entitlementGroups = [];
+                                    foreach ($owners as $owner) {
+                                        $entitlements = $owner['unit_entitlements'] ?? 0;
+                                        if (!isset($entitlementGroups[$entitlements])) {
+                                            $entitlementGroups[$entitlements] = 0;
+                                        }
+                                        $entitlementGroups[$entitlements]++;
+                                    }
+                                    ksort($entitlementGroups);
+                                    ?>
+                                    <table class="table table-sm">
+                                        <thead>
+                                            <tr>
+                                                <th>Entitlements</th>
+                                                <th>Units</th>
+                                                <th>Total Votes</th>
+                                                <th>% of Total</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <?php foreach ($entitlementGroups as $entitlement => $count): ?>
+                                                <?php 
+                                                $totalVotes = $entitlement * $count;
+                                                $percentage = $totalEntitlements > 0 ? round(($totalVotes / $totalEntitlements) * 100, 1) : 0;
+                                                ?>
+                                                <tr>
+                                                    <td><?php echo $entitlement; ?></td>
+                                                    <td><?php echo $count; ?></td>
+                                                    <td><?php echo $totalVotes; ?></td>
+                                                    <td><?php echo $percentage; ?>%</td>
+                                                </tr>
+                                            <?php endforeach; ?>
+                                        </tbody>
+                                        <tfoot>
+                                            <tr class="table-primary">
+                                                <th>Total</th>
+                                                <th><?php echo count($owners); ?></th>
+                                                <th><?php echo $totalEntitlements; ?></th>
+                                                <th>100%</th>
+                                            </tr>
+                                        </tfoot>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6>NSW Strata Information</h6>
+                                </div>
+                                <div class="card-body">
+                                    <h6>Voting Requirements:</h6>
+                                    <ul class="list-unstyled small">
+                                        <li><strong>Ordinary Resolution:</strong> More than 50% of votes</li>
+                                        <li><strong>Special Resolution:</strong> At least 75% of votes</li>
+                                        <li><strong>Unanimous Resolution:</strong> 100% of votes</li>
+                                    </ul>
+                                    
+                                    <h6>Key Thresholds:</h6>
+                                    <ul class="list-unstyled small">
+                                        <li><strong>50% + 1 vote:</strong> <?php echo floor($totalEntitlements / 2) + 1; ?> votes</li>
+                                        <li><strong>75% threshold:</strong> <?php echo ceil($totalEntitlements * 0.75); ?> votes</li>
+                                        <li><strong>Quorum (25%):</strong> <?php echo ceil($totalEntitlements * 0.25); ?> votes</li>
+                                    </ul>
+
+                                    <div class="alert alert-info small">
+                                        <strong>Note:</strong> Unit entitlements determine both voting rights and levy contributions according to NSW Strata Schemes Management Act 2015.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <?php endif; ?>
                 <?php endif; ?>
 
                 <div class="mt-4">

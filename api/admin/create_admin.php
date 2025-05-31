@@ -6,7 +6,7 @@ $error = '';
 $success = '';
 
 // Check if user is admin or if this is the initial setup (no admin exists)
-$stmt = $pdo->query('SELECT COUNT(*) as admin_count FROM users WHERE role = "admin"');
+$stmt = $pdo->query('SELECT COUNT(*) as admin_count FROM users WHERE role = \'admin\'');
 $adminCount = $stmt->fetchColumn();
 
 $isInitialSetup = $adminCount == 0;
