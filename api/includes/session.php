@@ -48,7 +48,12 @@ function clearUserCookie() {
 function restoreSessionFromCookies() {
     // Only restore if session is empty but cookies exist
     if (!isset($_SESSION['user_id']) && isset($_COOKIE['user_id']) && isset($_COOKIE['username'])) {
-        require_once __DIR__ . '/../database/config.php';
+        global $pdo;
+        
+        // If $pdo is not available globally, require the config file
+        if (!isset($pdo)) {
+            require_once __DIR__ . '/../database/config.php';
+        }
         
         try {
             // Verify the user still exists and get their current role

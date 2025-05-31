@@ -26,13 +26,13 @@ $currentUser = getCurrentUser();
                     </li>
                     <?php if (isLoggedIn()): ?>
                         <li class="nav-item">
-                            <a class="nav-link" href="/documents.php">Documents</a>
+                            <a class="nav-link" href="/api/pages/documents.php">Documents</a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" href="/maintenance.php">Maintenance</a>
+                            <a class="nav-link" href="/api/pages/maintenance.php">Maintenance</a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" href="/levies.php">Levies</a>
+                            <a class="nav-link" href="/api/pages/levies.php">Levies</a>
                         </li>
                         <li class="nav-item">
                             <a class="nav-link" href="/api/pages/owners.php">Owners Directory</a>
@@ -86,9 +86,9 @@ $currentUser = getCurrentUser();
                             <div class="card-body">
                                 <h5 class="card-title">Quick Links</h5>
                                 <ul class="list-unstyled">
-                                    <li><a href="/documents.php" class="text-decoration-none">📄 View Documents</a></li>
-                                    <li><a href="/maintenance.php" class="text-decoration-none">🔧 Submit Maintenance Request</a></li>
-                                    <li><a href="/levies.php" class="text-decoration-none">💰 Pay Levies</a></li>
+                                    <li><a href="/api/pages/documents.php" class="text-decoration-none">📄 View Documents</a></li>
+                                    <li><a href="/api/pages/maintenance.php" class="text-decoration-none">🔧 Submit Maintenance Request</a></li>
+                                    <li><a href="/api/pages/levies.php" class="text-decoration-none">💰 Pay Levies</a></li>
                                     <li><a href="/api/pages/owners.php" class="text-decoration-none">👥 Owners Directory</a></li>
                                 </ul>
                             </div>
