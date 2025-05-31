@@ -45,7 +45,44 @@ function clearUserCookie() {
     session_start();
 }
 
+function restoreSessionFromCookies() {
+    // Only restore if session is empty but cookies exist
+    if (!isset($_SESSION['user_id']) && isset($_COOKIE['user_id']) && isset($_COOKIE['username'])) {
+        require_once __DIR__ . '/../database/config.php';
+        
+        try {
+            // Verify the user still exists and get their current role
+            $stmt = $pdo->prepare('SELECT id, username, role FROM users WHERE id = ? AND username = ?');
+            $stmt->execute([$_COOKIE['user_id'], $_COOKIE['username']]);
+            $user = $stmt->fetch();
+            
+            if ($user) {
+                // Restore session variables
+                $_SESSION['user_id'] = $user['id'];
+                $_SESSION['username'] = $user['username'];
+                $_SESSION['role'] = $user['role'];
+                $_SESSION['last_activity'] = time();
+                $_SESSION['login_time'] = time();
+                return true;
+            } else {
+                // Invalid cookies, clear them
+                clearUserCookie();
+                return false;
+            }
+        } catch (PDOException $e) {
+            error_log('Session restoration error: ' . $e->getMessage());
+            return false;
+        }
+    }
+    return false;
+}
+
 function isLoggedIn() {
+    // Try to restore session from cookies if session is empty
+    if (!isset($_SESSION['user_id'])) {
+        restoreSessionFromCookies();
+    }
+    
     // Check session timeout
     if (isset($_SESSION['last_activity']) && 
         (time() - $_SESSION['last_activity']) > SESSION_TIMEOUT) {
@@ -167,8 +204,6 @@ function validateEmail($email) {
 }
 
 function validatePassword($password) {
-    // Password must be at least 8 characters long
-    // Must contain at least one uppercase letter, one lowercase letter, and one number
     return strlen($password) >= 8 && 
            preg_match('/[A-Z]/', $password) && 
            preg_match('/[a-z]/', $password) && 
